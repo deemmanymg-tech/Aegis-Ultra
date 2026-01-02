@@ -1,14 +1,9 @@
 #Requires -Version 5.1
-<#
-OPS_MASTER.ps1
-One-command ops loop: rebuild (optional), wait for health, run smoke, capture reports, open folder/UI.
-#>
-
 [CmdletBinding()]
 param(
   [string]$RepoRoot = (Get-Location).Path,
   [string]$BaseUrl = "http://127.0.0.1:8088",
-  [int]$TimeoutSec = 120,
+  [int]$TimeoutSec = 180,
   [switch]$NoRebuild,
   [switch]$NoBrowser,
   [switch]$NoOpenFolder,
@@ -35,7 +30,7 @@ function Run-Capture([string]$Title, [string]$Command, [int]$MaxSeconds = 0){
     stderr = ""
     started_utc = (Get-Date).ToUniversalTime().ToString("o")
     ended_utc = $null
-    duration_ms = $null
+    duration_ms = 0
   }
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   try{
@@ -46,11 +41,9 @@ function Run-Capture([string]$Title, [string]$Command, [int]$MaxSeconds = 0){
     $psi.RedirectStandardError  = $true
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
-
     $p = New-Object System.Diagnostics.Process
     $p.StartInfo = $psi
     [void]$p.Start()
-
     if($MaxSeconds -gt 0){
       if(-not $p.WaitForExit($MaxSeconds * 1000)){
         try{ $p.Kill() } catch {}
@@ -59,7 +52,6 @@ function Run-Capture([string]$Title, [string]$Command, [int]$MaxSeconds = 0){
     } else {
       $p.WaitForExit() | Out-Null
     }
-
     $obj.stdout = $p.StandardOutput.ReadToEnd()
     $obj.stderr = $p.StandardError.ReadToEnd()
     $obj.exit_code = $p.ExitCode
@@ -92,10 +84,10 @@ function Invoke-Healthz([string]$Url, [int]$MaxWaitSec){
       Start-Sleep -Milliseconds 600
     }
   }
-  return @{ ok=$false; body=($lastErr ? $lastErr : "healthz timeout") }
+  if(-not $lastErr){ $lastErr = "healthz timeout" }
+  return @{ ok=$false; body=$lastErr }
 }
 
-# ---- Validate repo ----
 Info "RepoRoot = $RepoRoot"
 Set-Location $RepoRoot
 $composeA = Join-Path $RepoRoot $ComposeFile
@@ -109,7 +101,6 @@ $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $reportJson = Join-Path $reportsDir "OPS_MASTER_REPORT_$ts.json"
 $reportMd   = Join-Path $reportsDir "OPS_MASTER_REPORT_$ts.md"
 
-# smoke path
 $smokeRepo = Join-Path $RepoRoot "scripts\SMOKE_DOMINANCE.ps1"
 $smokeTemp = Join-Path $env:TEMP "SMOKE_DOMINANCE.ps1"
 $smokePath = $null
@@ -132,29 +123,22 @@ $report = [ordered]@{
   ok = $false
 }
 
-# Docker
 if(-not $SkipDocker){
   if($NoRebuild){
     $report.notes += "NoRebuild enabled; docker compose not restarted."
   } else {
-    $s1 = Run-Capture "docker compose down" "docker compose -f `"$ComposeFile`" -f `"$ComposeOverride`" down" 300
-    $report.steps += $s1
-    $s2 = Run-Capture "docker compose up --build -d" "docker compose -f `"$ComposeFile`" -f `"$ComposeOverride`" up --build -d" 600
-    $report.steps += $s2
+    $report.steps += Run-Capture "docker compose down" "docker compose -f `"$ComposeFile`" -f `"$ComposeOverride`" down" 300
+    $report.steps += Run-Capture "docker compose up --build -d" "docker compose -f `"$ComposeFile`" -f `"$ComposeOverride`" up --build -d" 600
     $s3 = Run-Capture "docker compose ps" "docker compose -f `"$ComposeFile`" -f `"$ComposeOverride`" ps" 30
     $report.steps += $s3
-    $report.docker = @{ compose_files=@($ComposeFile,$ComposeOverride); ps=$s3.stdout.Trim(); up_ok=$s2.ok }
+    $report.docker = @{ compose_files=@($ComposeFile,$ComposeOverride); ps=$s3.stdout.Trim(); up_ok=$report.steps[-2].ok }
   }
-} else {
-  $report.notes += "SkipDocker enabled."
-}
+} else { $report.notes += "SkipDocker enabled." }
 
-# Health
 $healthUrl = ($BaseUrl.TrimEnd("/")) + "/healthz"
 $h = Invoke-Healthz $healthUrl $TimeoutSec
 $report.healthz = @{ url=$healthUrl; ok=$h.ok; body=$h.body }
 
-# Smoke
 if(-not $SkipSmoke -and $smokePath){
   $s = Run-Capture "SMOKE_DOMINANCE.ps1" ("powershell -ExecutionPolicy Bypass -File `"$smokePath`"") ($TimeoutSec + 120)
   $report.steps += $s
@@ -164,11 +148,8 @@ if(-not $SkipSmoke -and $smokePath){
     $p = ($bundleLine -replace "^.*Bundle saved to\s+","").Trim()
     if(Test-Path $p){ $report.artifacts += @{ kind="bundle_zip"; path=$p } }
   }
-} else {
-  $report.notes += "Smoke skipped or script missing."
-}
+} else { $report.notes += "Smoke skipped or script missing." }
 
-# Git
 if(-not $SkipGit){
   try{
     & git rev-parse --is-inside-work-tree 2>$null | Out-Null
@@ -183,14 +164,12 @@ if(-not $SkipGit){
   } catch { $report.notes += "Git not available: " + $_.Exception.Message }
 } else { $report.notes += "SkipGit enabled." }
 
-# Decide OK
 $okHealth = $report.healthz.ok
 $okSmoke  = ($SkipSmoke -or ($report.smoke -and $report.smoke.ok))
 $okDocker = ($SkipDocker -or $NoRebuild -or ($report.docker -and $report.docker.up_ok))
 $report.ok = ($okHealth -and $okSmoke -and $okDocker)
 $report.finished_local = (Get-Date).ToString("o")
 
-# Write reports
 Ensure-Dir (Split-Path -Parent $reportJson)
 $report | ConvertTo-Json -Depth 12 | Set-Content -Encoding UTF8 $reportJson
 
@@ -201,8 +180,8 @@ $md += "- Repo: $RepoRoot"
 $md += "- Base URL: $BaseUrl"
 $md += "- Healthz: $($report.healthz.ok) ($healthUrl) — $($report.healthz.body)"
 $md += "- Smoke: " + ($(if($SkipSmoke){"SKIPPED"} elseif($report.smoke.ok){"OK"} else {"FAIL"}))
-$md += "- Docker: " + ($(if($SkipDocker){"SKIPPED"} elseif($NoRebuild){"SKIPPED (NoRebuild)"} elseif($report.docker.up_ok){"OK"} else {"FAIL"}))
-$md += "- Overall: " + ($(if($report.ok){"✅ GREEN"} else {"❌ NOT GREEN"}))
+$md += "- Docker: " + ($(if($SkipDocker){"SKIPPED"} elseif($NoRebuild){"SKIPPED (NoRebuild)"} elseif($report.docker -and $report.docker.up_ok){"OK"} else {"FAIL"}))
+$md += "- Overall: " + ($(if($report.ok){"GREEN"} else {"NOT GREEN"}))
 $md += ""
 $md += "## URLs"
 $md += "- $healthUrl"
@@ -235,13 +214,13 @@ if($report.smoke){
   $md += "```"
 }
 $md += ""
-$md += "## Steps (stdout/stderr trimmed)"
+$md += "## Steps"
 foreach($s in $report.steps){
   $md += "### $($s.title)"
   $md += "- ok: $($s.ok)  exit: $($s.exit_code)  ms: $($s.duration_ms)"
   $md += "```"
-  if($s.stdout){ $md += ($s.stdout.TrimEnd() | Select-Object -First 2000) }
-  if($s.stderr){ $md += "`n--- stderr ---`n" + ($s.stderr.TrimEnd() | Select-Object -First 2000) }
+  if($s.stdout){ $md += $s.stdout.TrimEnd() }
+  if($s.stderr){ $md += "`n--- stderr ---`n" + $s.stderr.TrimEnd() }
   $md += "```"
 }
 
@@ -259,9 +238,9 @@ if(-not $NoBrowser){
 }
 
 if($report.ok){
-  Info "✅ OPS MASTER: GREEN"
+  Info "OPS MASTER: GREEN"
   exit 0
 } else {
-  Warn "❌ OPS MASTER: NOT GREEN (see report)"
+  Warn "OPS MASTER: NOT GREEN (see report)"
   exit 2
 }
