@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{fs::OpenOptions, io::Write, path::PathBuf, sync::Mutex};
+use std::{fs::OpenOptions, io::Write, path::{Path, PathBuf}, sync::Mutex};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent { pub event_type: String, pub request_id: String, pub payload: serde_json::Value, pub prev_hash: String, pub hash: String }
 pub struct AuditLedger { path: PathBuf, state: Mutex<String> }
 impl AuditLedger {
-  pub fn new(path: &PathBuf) -> Self { Self { path: path.clone(), state: Mutex::new("GENESIS".to_string()) } }
+  pub fn new(path: &Path) -> Self { Self { path: path.to_path_buf(), state: Mutex::new("GENESIS".to_string()) } }
   pub fn append(&self, event_type: &str, request_id: &str, payload: serde_json::Value) {
     let mut prev = self.state.lock().unwrap();
     let body = serde_json::json!({"event_type":event_type,"request_id":request_id,"payload":payload,"prev_hash":*prev});

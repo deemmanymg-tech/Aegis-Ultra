@@ -55,6 +55,7 @@ pub fn scan_text(text: &str, policy: &Policy) -> Vec<Finding> {
   out
 }
 
+#[allow(dead_code)]
 pub fn redact_text(text: &str, findings: &[Finding]) -> String {
   let mut out = text.to_string();
   for f in findings {

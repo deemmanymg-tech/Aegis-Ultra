@@ -17,8 +17,10 @@ dependencies = [
  "base64ct",
  "blake3",
  "bytes",
+ "dunce",
  "ed25519-dalek",
  "hex",
+ "once_cell",
  "regex",
  "reqwest",
  "serde",
@@ -27,6 +29,7 @@ dependencies = [
  "thiserror 1.0.69",
  "time",
  "tokio",
+ "tokio-util",
  "tower-http 0.5.2",
  "uuid",
  "zip",
@@ -429,6 +432,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "dunce"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "ed25519"

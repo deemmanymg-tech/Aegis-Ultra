@@ -4,9 +4,17 @@ use tokio::sync::RwLock;
 use crate::{audit::AuditLedger, opa::OpaClient, tools::registry::ToolRegistry};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolSpec { pub tool_id: String, pub platform: String, pub executable: String, pub allowed_arg_prefixes: Vec<String>, pub sha256_hex: String }
+pub struct ToolSpec {
+    pub tool_id: String,
+    pub platform: String,
+    pub executable: String,
+    pub allowed_arg_prefixes: Vec<String>,
+    pub sha256_hex: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalCfg { pub verifying_key_b64: String }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Policy {
     pub upstream_base_url: String,
@@ -24,15 +32,20 @@ pub struct Policy {
     pub approval: ApprovalCfg,
     pub tools: Vec<ToolSpec>,
 }
+
 #[derive(Clone)]
 pub struct AppState {
     pub policy: Arc<Policy>,
+    pub policy_raw: Arc<Vec<u8>>,
     pub ledger: Arc<AuditLedger>,
     pub opa: Option<Arc<OpaClient>>,
     pub opa_path: String,
     pub tool_registry: Arc<ToolRegistry>,
     pub prepares: Arc<RwLock<std::collections::HashMap<String, crate::tools::PrepareRecord>>>,
+    #[allow(dead_code)]
+    pub sandbox_timeout_ms: u64,
 }
+
 #[derive(Debug, Clone)]
 pub struct Config {
     policy_path: PathBuf,
@@ -42,18 +55,21 @@ pub struct Config {
     upstream_override: Option<String>,
     opa_url: Option<String>,
     opa_path: String,
+    sandbox_timeout_ms: u64,
 }
+
 impl Config {
     pub fn load() -> Result<Self, String> {
         let policy_path = std::env::var("AEGIS_POLICY_PATH").unwrap_or_else(|_| "policy/packs/policy.json".to_string());
-        let bind = std::env::var("AEGIS_BIND").unwrap_or_else(|_| "127.0.0.1:8088".to_string());
-        let bind: SocketAddr = bind.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+        let bind_s = std::env::var("AEGIS_BIND").unwrap_or_else(|_| "127.0.0.1:8088".to_string());
+        let bind: SocketAddr = bind_s.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
         let audit_path = std::env::var("AEGIS_AUDIT_PATH").unwrap_or_else(|_| "aegis_audit.jsonl".to_string());
         let artifacts_dir = std::env::var("AEGIS_ARTIFACTS_DIR").unwrap_or_else(|_| "artifacts".to_string());
         let upstream_override = std::env::var("AEGIS_UPSTREAM").ok();
         let opa_url = std::env::var("AEGIS_OPA_URL").ok();
         let opa_path = std::env::var("AEGIS_OPA_PATH").unwrap_or_else(|_| "aegis/decision/result".to_string());
-        Ok(Self { policy_path: PathBuf::from(policy_path), bind, audit_path: PathBuf::from(audit_path), artifacts_dir: PathBuf::from(artifacts_dir), upstream_override, opa_url, opa_path })
+        let sandbox_timeout_ms = std::env::var("AEGIS_SANDBOX_TIMEOUT_MS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(30_000);
+        Ok(Self { policy_path: PathBuf::from(policy_path), bind, audit_path: PathBuf::from(audit_path), artifacts_dir: PathBuf::from(artifacts_dir), upstream_override, opa_url, opa_path, sandbox_timeout_ms })
     }
     pub fn bind_addr(&self) -> SocketAddr { self.bind }
     pub async fn build_state(&self) -> Result<AppState, String> {
@@ -63,6 +79,6 @@ impl Config {
         let ledger = AuditLedger::new(&self.audit_path);
         let tool_registry = ToolRegistry::from_policy(&policy, &self.artifacts_dir)?;
         let opa = self.opa_url.as_ref().map(|url| Arc::new(OpaClient::new(url.clone())));
-        Ok(AppState { policy: Arc::new(policy), ledger: Arc::new(ledger), opa, opa_path: self.opa_path.clone(), tool_registry: Arc::new(tool_registry), prepares: Arc::new(RwLock::new(std::collections::HashMap::new())) })
+        Ok(AppState { policy: Arc::new(policy), policy_raw: Arc::new(bytes), ledger: Arc::new(ledger), opa, opa_path: self.opa_path.clone(), tool_registry: Arc::new(tool_registry), prepares: Arc::new(RwLock::new(std::collections::HashMap::new())), sandbox_timeout_ms: self.sandbox_timeout_ms })
     }
 }

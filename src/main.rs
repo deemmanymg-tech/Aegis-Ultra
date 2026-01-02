@@ -6,6 +6,7 @@ mod approvals;
 mod bundle;
 mod gateway;
 mod tools;
+mod decision;
 
 use axum::{routing::{get, post}, Router};
 use tower_http::cors::{Any, CorsLayer};
