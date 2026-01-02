@@ -1,0 +1,2 @@
+91432e2a0c81addb8a220fd296dc33fcc2f7dfd3f06b971baf2850ebd919163c  AegisUltra_0.1.0_windows.zip
+66cee2bce2514b06ad189ee8174c0999640323719e791b3c46701c14c949ceb2  AegisUltra_0.1.0_docker.zip

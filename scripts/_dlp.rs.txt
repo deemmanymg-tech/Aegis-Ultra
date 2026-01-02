@@ -1,0 +1,31 @@
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use crate::config::Policy;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FindingKind { Secret, Pii, PromptInjection, Domain }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Finding { pub kind: FindingKind, pub pattern: String, pub snippet: String }
+fn rx(p: &str) -> Regex { Regex::new(p).unwrap() }
+pub fn scan_text(text: &str, policy: &Policy) -> Vec<Finding> {
+  let mut out = vec![];
+  if policy.block_on_secrets {
+    let re = rx(r"(?i)sk-[A-Za-z0-9]{20,}");
+    if let Some(m) = re.find(text) { out.push(Finding{ kind: FindingKind::Secret, pattern:"openai_style_key".to_string(), snippet:text[m.start()..m.end()].to_string() }); }
+  }
+  if policy.block_on_injection {
+    let re = rx(r"(?i)\b(ignore|bypass|override)\b.{0,40}\b(instructions|system|policy)\b");
+    if let Some(m) = re.find(text) { out.push(Finding{ kind: FindingKind::PromptInjection, pattern:"ignore_instructions".to_string(), snippet:text[m.start()..m.end()].to_string() }); }
+  }
+  out
+}
+pub fn redact_text(text: &str, findings: &[Finding]) -> String {
+  let mut out = text.to_string();
+  for f in findings {
+    match f.kind {
+      FindingKind::Secret => out = out.replace(&f.snippet, "[REDACTED_SECRET]"),
+      FindingKind::Pii => out = out.replace(&f.snippet, "[REDACTED_PII]"),
+      _ => {}
+    }
+  }
+  out
+}

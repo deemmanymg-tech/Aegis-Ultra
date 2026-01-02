@@ -1,0 +1,24 @@
+[package]
+name = "aegis_ultra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+sha2 = "0.10"
+hex = "0.4"
+blake3 = "1"
+bytes = "1"
+zip = "2"
+thiserror = "1"
+base64 = "0.22"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+time = { version = "0.3", features = ["formatting"] }
+base64ct = "1.7.2"

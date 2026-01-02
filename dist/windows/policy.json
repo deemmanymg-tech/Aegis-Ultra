@@ -1,0 +1,40 @@
+{
+  "upstream_base_url": "http://127.0.0.1:8000",
+  "fail_closed": true,
+
+  "redact_before_upstream": false,
+  "redact_response_to_client": false,
+
+  "allowed_domains": ["localhost", "127.0.0.1"],
+  "block_unknown_domains": false,
+
+  "block_on_secrets": true,
+  "block_on_injection": true,
+  "block_on_pii": false,
+
+  "risk_high_requires_approval": true,
+  "risk_money_threshold_usd": 10000,
+
+  "tool_prepare_allows_execution": false,
+
+  "approval": {
+    "verifying_key_b64": ""
+  },
+
+  "tools": [
+    {
+      "tool_id": "pwsh",
+      "platform": "windows",
+      "executable": "C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe",
+      "allowed_arg_prefixes": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"],
+      "sha256_hex": ""
+    },
+    {
+      "tool_id": "bash",
+      "platform": "linux",
+      "executable": "/bin/bash",
+      "allowed_arg_prefixes": ["-lc"],
+      "sha256_hex": ""
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+services:
+  opa:
+    image: openpolicyagent/opa:latest
+    command: ["run","--server","--addr=0.0.0.0:8181","/policy/aegis.rego"]
+    volumes:
+      - ../policy/rego:/policy:ro
+    ports:
+      - "8181:8181"
+
+  aegis:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      AEGIS_BIND: 0.0.0.0:8088
+      AEGIS_POLICY_PATH: /srv/policy.json
+      AEGIS_UPSTREAM: http://host.docker.internal:8000
+      AEGIS_OPA_URL: http://opa:8181
+      AEGIS_OPA_PATH: aegis/decision/result
+    ports:
+      - "8088:8088"
+    volumes:
+      - ../policy/packs/policy.json:/srv/policy.json:ro
+      - ../aegis_audit.jsonl:/srv/aegis_audit.jsonl
+      - ../artifacts:/srv/artifacts
+    depends_on:
+      - opa

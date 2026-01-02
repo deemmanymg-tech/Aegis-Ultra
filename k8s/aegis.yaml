@@ -1,0 +1,75 @@
+# NOTE: Replace image: with your registry before applying.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aegis-policy
+data:
+  policy.json: |
+    { "upstream_base_url":"http://llm-gateway.default.svc.cluster.local:8000", "fail_closed":true }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aegis-rego
+data:
+  aegis.rego: |
+    package aegis.decision
+    default allow := true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aegis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aegis
+  template:
+    metadata:
+      labels:
+        app: aegis
+    spec:
+      containers:
+        - name: aegis
+          image: yourrepo/aegis-ultra:0.1.0
+          ports:
+            - containerPort: 8088
+          env:
+            - name: AEGIS_POLICY_PATH
+              value: /srv/policy.json
+            - name: AEGIS_OPA_URL
+              value: http://127.0.0.1:8181
+            - name: AEGIS_OPA_PATH
+              value: aegis/decision/result
+          volumeMounts:
+            - name: policy
+              mountPath: /srv/policy.json
+              subPath: policy.json
+        - name: opa
+          image: openpolicyagent/opa:latest
+          args: ["run","--server","--addr=0.0.0.0:8181","/policy/aegis.rego"]
+          ports:
+            - containerPort: 8181
+          volumeMounts:
+            - name: rego
+              mountPath: /policy/aegis.rego
+              subPath: aegis.rego
+      volumes:
+        - name: policy
+          configMap:
+            name: aegis-policy
+        - name: rego
+          configMap:
+            name: aegis-rego
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aegis
+spec:
+  selector:
+    app: aegis
+  ports:
+    - port: 8088
+      targetPort: 8088
