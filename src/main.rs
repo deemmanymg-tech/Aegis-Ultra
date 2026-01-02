@@ -7,6 +7,7 @@ mod bundle;
 mod gateway;
 mod tools;
 mod decision;
+mod ui;
 
 use axum::{routing::{get, post}, Router};
 use tower_http::cors::{Any, CorsLayer};
@@ -19,6 +20,8 @@ async fn main() {
     let cors = CorsLayer::new().allow_origin(Any).allow_headers(Any).allow_methods(Any);
 
     let app = Router::new()
+        .route("/", get(ui::index))
+        .route("/version", get(ui::version))
         .route("/healthz", get(gateway::healthz))
         .route("/v1/chat/completions", post(gateway::chat_completions))
         .route("/v1/tools/prepare", post(tools::prepare))
