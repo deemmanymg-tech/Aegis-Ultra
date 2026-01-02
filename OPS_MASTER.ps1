@@ -140,7 +140,9 @@ $h = Invoke-Healthz $healthUrl $TimeoutSec
 $report.healthz = @{ url=$healthUrl; ok=$h.ok; body=$h.body }
 
 if(-not $SkipSmoke -and $smokePath){
-  $s = Run-Capture "SMOKE_DOMINANCE.ps1" ("powershell -ExecutionPolicy Bypass -File `"$smokePath`"") ($TimeoutSec + 120)
+  $smokeRun = Join-Path $env:TEMP "SMOKE_DOMINANCE_RUN.ps1"
+  Copy-Item $smokePath $smokeRun -Force
+  $s = Run-Capture "SMOKE_DOMINANCE.ps1" ("powershell -NoProfile -ExecutionPolicy Bypass -File `"$smokeRun`"") ($TimeoutSec + 120)
   $report.steps += $s
   $report.smoke = @{ path=$smokePath; ok=$s.ok; exit_code=$s.exit_code; stdout=$s.stdout; stderr=$s.stderr }
   $bundleLine = ($s.stdout -split "`r?`n") | Where-Object { $_ -match "Bundle saved to" } | Select-Object -First 1
@@ -174,11 +176,11 @@ Ensure-Dir (Split-Path -Parent $reportJson)
 $report | ConvertTo-Json -Depth 12 | Set-Content -Encoding UTF8 $reportJson
 
 $md = @()
-$md += "# OPS MASTER REPORT — $ts"
+$md += "# OPS MASTER REPORT - $ts"
 $md += ""
 $md += "- Repo: $RepoRoot"
 $md += "- Base URL: $BaseUrl"
-$md += "- Healthz: $($report.healthz.ok) ($healthUrl) — $($report.healthz.body)"
+$md += "- Healthz: $($report.healthz.ok) ($healthUrl) -- $($report.healthz.body)"
 $md += "- Smoke: " + ($(if($SkipSmoke){"SKIPPED"} elseif($report.smoke.ok){"OK"} else {"FAIL"}))
 $md += "- Docker: " + ($(if($SkipDocker){"SKIPPED"} elseif($NoRebuild){"SKIPPED (NoRebuild)"} elseif($report.docker -and $report.docker.up_ok){"OK"} else {"FAIL"}))
 $md += "- Overall: " + ($(if($report.ok){"GREEN"} else {"NOT GREEN"}))
@@ -189,7 +191,7 @@ $md += "- $($BaseUrl.TrimEnd('/'))/version"
 $md += "- $($BaseUrl.TrimEnd('/'))/v1/aegis/bundle/<request_id>"
 $md += ""
 $md += "## Notes"
-foreach($n in $report.notes){ $md += "- $n" }
+foreach($n in $report.notes){ $md += "- " + $n }
 $md += ""
 $md += "## Git"
 if($report.git){
@@ -211,8 +213,8 @@ if($report.smoke){
 $md += ""
 $md += "## Steps"
 foreach($s in $report.steps){
-  $md += "### $($s.title)"
-  $md += "- ok: $($s.ok)  exit: $($s.exit_code)  ms: $($s.duration_ms)"
+  $md += "### " + $s.title
+  $md += "- ok: " + $s.ok + "  exit: " + $s.exit_code + "  ms: " + $s.duration_ms
   if($s.stdout){ $md += $s.stdout.TrimEnd() }
   if($s.stderr){ $md += "--- stderr ---`n" + $s.stderr.TrimEnd() }
   $md += ""
