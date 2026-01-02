@@ -130,9 +130,7 @@ $md += "- healthz: ok"
 if($requestId){ $md += "- request_id: $requestId" }
 $md += ""
 $md += "## Smoke output"
-$md += "```"
-$md += ($smokeOut.TrimEnd())
-$md += "```"
+$md += ($smokeOut.TrimEnd() -split "`r?`n" | ForEach-Object { "  $_" })
 $md += ""
 $md += "## Evidence"
 if($requestId){

@@ -32,6 +32,16 @@ impl ToolRegistry {
       return Self::bash_lc_safe(args);
     }
 
+    if spec.tool_id == "pwsh" {
+      if args.len() < 4 { return false; }
+      // all but the last must match allowed prefixes
+      for a in args.iter().take(args.len().saturating_sub(1)) {
+        if !spec.allowed_arg_prefixes.iter().any(|p| a.starts_with(p)) { return false; }
+      }
+      // last arg is the script path; accept as-is
+      return true;
+    }
+
     for a in args {
       if !spec.allowed_arg_prefixes.iter().any(|p| a.starts_with(p)) { return false; }
     }
