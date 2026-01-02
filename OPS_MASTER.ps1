@@ -195,33 +195,27 @@ $md += "## Git"
 if($report.git){
   $md += "- Branch: $($report.git.branch)"
   $md += "- HEAD: $($report.git.head)"
-  $md += "```"
+  $md += "Status:"
   $md += $report.git.status_porcelain
-  $md += "```"
 } else { $md += "_Git not captured._" }
 $md += ""
 $md += "## Docker ps"
 if($report.docker){
-  $md += "```"
   $md += $report.docker.ps
-  $md += "```"
 } else { $md += "_Docker not captured._" }
 $md += ""
 $md += "## Smoke stdout"
 if($report.smoke){
-  $md += "```"
-  $md += ($report.smoke.stdout.TrimEnd())
-  $md += "```"
+  $md += $report.smoke.stdout.TrimEnd()
 }
 $md += ""
 $md += "## Steps"
 foreach($s in $report.steps){
   $md += "### $($s.title)"
   $md += "- ok: $($s.ok)  exit: $($s.exit_code)  ms: $($s.duration_ms)"
-  $md += "```"
   if($s.stdout){ $md += $s.stdout.TrimEnd() }
-  if($s.stderr){ $md += "`n--- stderr ---`n" + $s.stderr.TrimEnd() }
-  $md += "```"
+  if($s.stderr){ $md += "--- stderr ---`n" + $s.stderr.TrimEnd() }
+  $md += ""
 }
 
 $md -join "`n" | Set-Content -Encoding UTF8 $reportMd
