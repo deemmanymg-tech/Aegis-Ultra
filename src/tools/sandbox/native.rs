@@ -1,26 +1,40 @@
 use std::process::Stdio;
 use tokio::process::Command;
 
-use crate::{config::AppState, tools::{ToolIntent, CommitResp}};
+use crate::{
+    config::AppState,
+    tools::{CommitResp, ToolIntent},
+};
 
 fn is_absolute(p: &str) -> bool {
-    if cfg!(target_os="windows") {
-        (p.len() > 2 && p.as_bytes()[1] == b':' && (p.as_bytes()[2] == b'\\' || p.as_bytes()[2] == b'/'))
+    if cfg!(target_os = "windows") {
+        (p.len() > 2
+            && p.as_bytes()[1] == b':'
+            && (p.as_bytes()[2] == b'\\' || p.as_bytes()[2] == b'/'))
             || p.starts_with("\\\\")
     } else {
         p.starts_with("/")
     }
 }
 
-pub async fn run(st: &AppState, request_id: &str, intent: &ToolIntent) -> Result<CommitResp, String> {
-    let spec = st.tool_registry.find(&intent.params.tool_id).ok_or("unknown tool_id")?;
+pub async fn run(
+    st: &AppState,
+    request_id: &str,
+    intent: &ToolIntent,
+) -> Result<CommitResp, String> {
+    let spec = st
+        .tool_registry
+        .find(&intent.params.tool_id)
+        .ok_or("unknown tool_id")?;
     if !is_absolute(&spec.executable) {
         return Err("tool executable must be absolute path".to_string());
     }
 
     let dir = st.tool_registry.artifacts_dir.join(request_id);
     let workdir = dir.join("work");
-    tokio::fs::create_dir_all(&workdir).await.map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&workdir)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let stdout_path = dir.join("stdout.txt");
     let stderr_path = dir.join("stderr.txt");
@@ -45,8 +59,12 @@ pub async fn run(st: &AppState, request_id: &str, intent: &ToolIntent) -> Result
     let stderr_bytes = out.stderr;
     let timed_out = false;
 
-    tokio::fs::write(&stdout_path, &stdout_bytes).await.map_err(|e| e.to_string())?;
-    tokio::fs::write(&stderr_path, &stderr_bytes).await.map_err(|e| e.to_string())?;
+    tokio::fs::write(&stdout_path, &stdout_bytes)
+        .await
+        .map_err(|e| e.to_string())?;
+    tokio::fs::write(&stderr_path, &stderr_bytes)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let decision = serde_json::json!({
         "allowed": true,
@@ -55,9 +73,14 @@ pub async fn run(st: &AppState, request_id: &str, intent: &ToolIntent) -> Result
         "tool_id": intent.params.tool_id,
         "args": intent.params.args,
     });
-    tokio::fs::write(&decision_path, serde_json::to_vec_pretty(&decision).unwrap_or_default()).await.map_err(|e| e.to_string())?;
+    tokio::fs::write(
+        &decision_path,
+        serde_json::to_vec_pretty(&decision).unwrap_or_default(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
-    Ok(CommitResp{
+    Ok(CommitResp {
         ok: !timed_out && exit_code == 0,
         request_id: request_id.to_string(),
         exit_code,

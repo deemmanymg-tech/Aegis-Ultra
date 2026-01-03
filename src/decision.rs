@@ -1,5 +1,9 @@
 use serde::Serialize;
-use std::{fs, path::Path, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    fs,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[allow(dead_code)]
 #[derive(Serialize)]
@@ -17,7 +21,10 @@ pub struct DecisionRecord<'a> {
 
 #[allow(dead_code)]
 pub fn now_unix_ms() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
 }
 
 #[allow(dead_code)]
